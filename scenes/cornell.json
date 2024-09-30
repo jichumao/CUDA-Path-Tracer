@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":10.0
         },
         "diffuse_white":
         {
@@ -26,7 +26,16 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
+            "SPECRGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "glass":
+        {
+            "TYPE":"Refractive",
+            "RGB":[0.98, 0.98, 0.98],
+            "SPECRGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0,
+            "IOR":1.55
         }
     },
     "Camera":
@@ -38,7 +47,9 @@
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0]
+        "UP":[0.0,1.0,0.0],
+        "LENSRADIUS":1.0,
+        "FOCALLENGTH":9.0
     },
     "Objects":
     [
@@ -84,12 +95,13 @@
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
+
         {
             "TYPE":"sphere",
             "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
+            "TRANS":[0.0,4.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[5.0,5.0,5.0]
         }
     ]
 }

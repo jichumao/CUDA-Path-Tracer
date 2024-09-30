@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "utilities.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -55,6 +56,11 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+	// For depth of field. Credits for CIS 4610 Lecture for Visual Effects 
+#if DEPTH_OF_FIELD
+	float lensRadius;
+	float focalLength;
+#endif
 };
 
 struct RenderState
@@ -72,6 +78,9 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+
+	// Added for accumulated color
+	glm::vec3 accumColor;
 };
 
 // Use with a corresponding PathSegment to do:

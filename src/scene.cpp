@@ -51,7 +51,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
+            const float& roughness = p["ROUGHNESS"];
+            newMaterial.hasReflective = 1.0f - roughness;
+
+			const auto& col2 = p["SPECRGB"];
+			newMaterial.specular.color = glm::vec3(col2[0], col2[1], col2[2]);
+            
+		}
+		else if (p["TYPE"] == "Refractive")
+		{
+			const auto& col = p["RGB"];
+			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+			newMaterial.indexOfRefraction = p["IOR"];
+			newMaterial.hasRefractive = 1.0f;
+
+            const auto& col2 = p["SPECRGB"];
+            newMaterial.specular.color = glm::vec3(col2[0], col2[1], col2[2]);
+		}
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
@@ -94,6 +110,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
     const auto& pos = cameraData["EYE"];
     const auto& lookat = cameraData["LOOKAT"];
     const auto& up = cameraData["UP"];
+
+#if DEPTH_OF_FIELD
+	camera.lensRadius = cameraData["LENSRADIUS"];
+	camera.focalLength = cameraData["FOCALLENGTH"];
+#endif
+
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
