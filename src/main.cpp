@@ -96,8 +96,22 @@ void saveImage()
         for (int y = 0; y < height; y++)
         {
             int index = x + (y * width);
-            glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+            glm::vec3 pix = renderState->image[index] / samples;
+#if REINHARD_TONE_MAPPING
+			pix /= (pix + glm::vec3(1.0f));
+#endif 
+#if ACES_TONE_MAPPING
+			pix = (pix * (2.51f * pix + 0.03f)) / (pix * (2.43f * pix + 0.59f) + 0.14f);
+#endif 
+#if GAMMA_CORRECTION
+			pix = glm::pow(pix, glm::vec3(1.f / 2.2f));
+#endif
+			glm::ivec3 color;
+			color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+			color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+			color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
+
+            img.setPixel(width - 1 - x, y, glm::vec3(pix));
         }
     }
 

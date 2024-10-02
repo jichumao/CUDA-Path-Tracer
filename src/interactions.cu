@@ -57,11 +57,14 @@ void scatter_specular(PathSegment& pathSegment,
 	pathSegment.accumColor *= m.specular.color;
 }
 
+// Implementation referenced from CIS 5610
 __host__ __device__
 void scatter_transmissive(PathSegment& pathSegment,
 	glm::vec3 normal,
 	const Material& m) {
+
 	float eta;
+
 	if (glm::dot(-pathSegment.ray.direction, normal) >= 0) {
 		eta = 1.f / m.indexOfRefraction;
 	}
@@ -69,11 +72,11 @@ void scatter_transmissive(PathSegment& pathSegment,
 		eta = m.indexOfRefraction;
 		normal *= -1.f;
 	}
+
 	pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, eta);
 
 	if (glm::length(pathSegment.ray.direction) == 0) { 
         scatter_specular(pathSegment, normal, m);
-		pathSegment.accumColor = glm::vec3(0.f);
 	}
 	else {
 		pathSegment.accumColor *= m.specular.color;

@@ -82,7 +82,7 @@ glm::vec2 SampleUniformDiskConcentric(float u1, float u2)
 struct sort_material
 {
 	__host__ __device__
-		bool operator()(const ShadeableIntersection& si1, const ShadeableIntersection& si2)
+	bool operator()(const ShadeableIntersection& si1, const ShadeableIntersection& si2)
 	{
 		return si1.materialId < si2.materialId;
 	}
@@ -92,7 +92,7 @@ struct sort_material
 struct if_terminated
 {
 	__host__ __device__
-		bool operator()(const PathSegment& ps)
+	bool operator()(const PathSegment& ps)
 	{
 		return ps.remainingBounces != 0;
 	}
@@ -109,10 +109,20 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         int index = x + (y * resolution.x);
         glm::vec3 pix = image[index];
 
+        pix /= iter;
+#if REINHARD_TONE_MAPPING
+		pix /= (pix + glm::vec3(1.0f));
+#endif 
+#if ACES_TONE_MAPPING
+		pix = (pix * (2.51f * pix + 0.03f)) / (pix * (2.43f * pix + 0.59f) + 0.14f);
+#endif 
+#if GAMMA_CORRECTION
+		pix = glm::pow(pix, glm::vec3(1.f / 2.2f));
+#endif
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -495,7 +505,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 		num_paths = thrust::distance(thrust_dev_paths, end);
 #endif
 
-        iterationComplete = ((num_paths == 0) || (depth == traceDepth));
+        iterationComplete = ((num_paths <= 0) || (depth == traceDepth));
 
         if (guiData != NULL)
         {

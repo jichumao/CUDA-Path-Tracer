@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":10.0
+            "EMITTANCE":5.0
         },
         "diffuse_white":
         {
@@ -98,7 +98,7 @@
 
         {
             "TYPE":"sphere",
-            "MATERIAL":"specular_white",
+            "MATERIAL":"glass",
             "TRANS":[0.0,4.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[5.0,5.0,5.0]

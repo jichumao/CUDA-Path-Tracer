@@ -21,13 +21,16 @@
 #define PI_OVER_TWO      1.57079632679489662f
 #define PI_OVER_FOUR     0.78539816339744831f
 #define ONE_THIRD        0.3333333333333333333333333333333333333333f
-#define E                2.71828182845904524f
 #define OneMinusEpsilon  0.99999f
 // Switches
 #define STREAM_COMPACTION       1
 #define MATERIAL_SORT           0
 #define ANTI_ALIASING           1
-#define DEPTH_OF_FIELD          1
+#define DEPTH_OF_FIELD          0
+#define GAMMA_CORRECTION        1
+// Tone mapping
+#define REINHARD_TONE_MAPPING   0 && !ACES_TONE_MAPPING
+#define ACES_TONE_MAPPING       1 && !REINHARD_TONE_MAPPING
 
 class GuiDataContainer
 {
