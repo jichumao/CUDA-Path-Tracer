@@ -107,3 +107,73 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ 
+float meshIntersectionTest(
+    Geom mesh,
+	Triangle* tris,
+    Ray ray,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+	glm::vec2& uvOut,
+    bool& outside) {
+
+	glm::vec3 objOrigin = multiplyMV(mesh.inverseTransform, glm::vec4(ray.origin, 1.0f));
+	glm::vec3 objDir = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(ray.direction, 0.0f)));
+
+	float closestT = FLT_MAX;
+	glm::vec3 closestNormal(0.0f);
+	glm::vec2 closestUV(0.0f);
+	bool hit = false;
+
+	for (int i = mesh.startTriangleIndex; i <= mesh.endTriangleIndex; ++i) {
+		const Triangle& tri = tris[i];
+		glm::vec3 baryPosition;
+
+		if (glm::intersectRayTriangle(objOrigin, objDir,
+			tri.v0.position, tri.v1.position, tri.v2.position,
+			baryPosition)) {
+			float t = baryPosition.z;
+			if (t > 0.0f && t < closestT) {
+				closestT = t;
+				hit = true;
+
+                if (mesh.hasNormals) {
+                    glm::vec3 n0 = tri.v0.normal;
+                    glm::vec3 n1 = tri.v1.normal;
+                    glm::vec3 n2 = tri.v2.normal;
+                    closestNormal = glm::normalize(
+                        (1.0f - baryPosition.x - baryPosition.y) * n0 +
+                        baryPosition.x * n1 +
+                        baryPosition.y * n2
+                    );
+
+				}else {
+					closestNormal = glm::cross(tri.v1.position - tri.v0.position, tri.v2.position - tri.v0.position);
+				}
+
+                if (mesh.hasUVs) {
+					glm::vec2 uv0 = tri.v0.uv;
+					glm::vec2 uv1 = tri.v1.uv;
+					glm::vec2 uv2 = tri.v2.uv;
+					closestUV = (1.0f - baryPosition.x - baryPosition.y) * uv0 +
+						baryPosition.x * uv1 +
+						baryPosition.y * uv2;
+                }else {
+					closestUV = glm::vec2(0.0f);
+                }
+			}
+		}
+	}
+
+	if (!hit) {
+		return -1.0f;
+	}
+
+	glm::vec3 objIntersect = objOrigin + closestT * objDir;
+	intersectionPoint = multiplyMV(mesh.transform, glm::vec4(objIntersect, 1.0f));
+	normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(closestNormal, 0.0f)));
+	uvOut = closestUV;
+	return glm::length(ray.origin - intersectionPoint);
+}
+

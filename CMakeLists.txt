@@ -50,6 +50,15 @@ set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+
+add_library(tinygltf INTERFACE)
+target_include_directories(tinygltf INTERFACE "${CMAKE_SOURCE_DIR}/external/include")
+
+set(tinygltf_headers
+    external/include/tiny_gltf.h
+    external/include/json.hpp
+)
+
 set(headers
     src/main.h
     src/image.h
@@ -61,6 +70,7 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    ${tinygltf_headers}
 )
 
 set(sources
@@ -102,9 +112,11 @@ list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
 list(SORT imgui_sources)
+list(SORT tinygltf_headers)
 
 source_group("Headers" FILES ${headers})
 source_group("Sources" FILES ${sources})
+source_group("External\\gltf\\Headers" FILES ${tinygltf_headers})
 source_group("ImGui\\Headers" FILES ${imgui_headers})
 source_group("ImGui\\Sources" FILES ${imgui_sources})
 

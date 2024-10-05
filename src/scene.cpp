@@ -5,12 +5,36 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+
+#define TINYGLTF_IMPLEMENTATION
+#include "tiny_gltf.h"
+#include "stb_image.h"
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
+
+#if ENVIRONMENT_MAP_ENABLED
+	int width, height, channels;
+	int desired_channels = 4; 
+    std::string fileName = "small_apartment_1.hdr";
+	std::string dir_skyboxTex = "../resources/environment_maps/" + fileName;
+	float* h_image = stbi_loadf(dir_skyboxTex.c_str(), &width, &height, &channels, desired_channels);
+	if (!h_image) {
+		std::cerr << "Failed to load SKYBOX image!" << std::endl;
+		exit(EXIT_FAILURE);
+	}
+	// Assign to skyboxTexture
+	skyboxTexture = new Texture();
+	skyboxTexture->width = width;
+	skyboxTexture->height = height;
+	skyboxTexture->numChannels = desired_channels;
+	skyboxTexture->type = SkyboxMap;
+	skyboxTexture->data = h_image;
+	enable_skybox = true;
+#endif
     auto ext = filename.substr(filename.find_last_of('.'));
     if (ext == ".json")
     {
@@ -72,18 +96,32 @@ void Scene::loadFromJSON(const std::string& jsonName)
         materials.emplace_back(newMaterial);
     }
     const auto& objectsData = data["Objects"];
+
+	uint32_t gid = 0;
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
+
+        newGeom.geometryid = gid++;
+
         if (type == "cube")
         {
             newGeom.type = CUBE;
         }
-        else
+		else if (type == "sphere")
         {
             newGeom.type = SPHERE;
         }
+        else if (type == "mesh_gltf")
+        {
+			newGeom.type = MESH;
+			loadFromGltf(p["FILE"], newGeom);
+		}
+		else {
+			std::cerr << "Unknown object type: " << type << std::endl;
+			continue;
+		}
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
@@ -137,3 +175,165 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
+
+// Reference https://www.slideshare.net/slideshow/gltf-20-reference-guide/78149291#1
+void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
+
+	tinygltf::Model model;
+	tinygltf::TinyGLTF loader;
+	std::string err;
+	std::string warn;
+
+	std::string dir_gltf = "../resources/" + gltfName + "/" + gltfName + ".gltf";
+	bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, dir_gltf);
+
+	if (!warn.empty()) {
+		std::cout << "Warn: " << warn << std::endl;
+	}
+
+	if (!err.empty()) {
+		std::cerr << "Error: " << err << std::endl;
+	}
+
+    if (!ret) {
+		std::cerr << "Failed to load glTF: " << dir_gltf << std::endl;
+		return;
+    }
+
+    meshGeom.startTriangleIndex = meshTris.size();
+	// For each mesh in the glTF file
+    for (const auto& mesh : model.meshes) {
+        // For each primitive in the mesh
+        for (const auto& primitive : mesh.primitives) {
+
+            const float* positions = nullptr;
+            const float* normals = nullptr;
+            const float* texcoords = nullptr;
+
+            size_t vertexCount = 0;
+
+            for (const auto& attr : primitive.attributes) {
+                const tinygltf::Accessor& accessor = model.accessors[attr.second];
+                const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
+                const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+                const unsigned char* dataPtr = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
+
+                if (attr.first == "POSITION") {
+                    positions = reinterpret_cast<const float*>(dataPtr);
+                    vertexCount = accessor.count;
+                }
+                else if (attr.first == "NORMAL") {
+                    normals = reinterpret_cast<const float*>(dataPtr);
+                    meshGeom.hasNormals = true;
+                }
+                else if (attr.first == "TEXCOORD_0") {
+                    texcoords = reinterpret_cast<const float*>(dataPtr);
+                    meshGeom.hasUVs = true;
+                }
+            }
+
+			// Get the indices from the primitive
+			std::vector<unsigned int> indices;
+			if (primitive.indices >= 0) {
+				const tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
+				const tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+				const tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+				const unsigned char* indexData = indexBuffer.data.data() + indexBufferView.byteOffset + indexAccessor.byteOffset;
+
+				indices.resize(indexAccessor.count);
+                // 5123
+				if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+					const uint16_t* buf = reinterpret_cast<const uint16_t*>(indexData);
+					for (size_t i = 0; i < indexAccessor.count; ++i) {
+						indices[i] = static_cast<unsigned int>(buf[i]);
+					}
+				}
+                // 5125
+				else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+					const uint32_t* buf = reinterpret_cast<const uint32_t*>(indexData);
+					for (size_t i = 0; i < indexAccessor.count; ++i) {
+						indices[i] = static_cast<unsigned int>(buf[i]);
+					}
+				}
+				else {
+					std::cerr << "Unsupported Indices component" << std::endl;
+					continue;
+				}
+			}
+			else {
+				// if no indices, generate them
+				indices.resize(vertexCount);
+				for (unsigned int i = 0; i < vertexCount; ++i) {
+					indices[i] = i;
+				}
+			}
+			// Add the texture to the material
+            if (primitive.material >= 0) {
+                int idx = model.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
+				if (idx >= 0) {
+					const tinygltf::Texture& texture = model.textures[idx];
+					const tinygltf::Image& image = model.images[texture.source];
+
+					Texture tex;
+					tex.id = textures.size();
+					tex.width = image.width;
+					tex.height = image.height;
+					tex.numChannels = image.component;
+					tex.type = AlbedoMap;
+                    tex.startIdx = texturesData.size();
+
+					// The start index of the texture data in texturesData
+					meshGeom.albedoTextureId = tex.id;
+					meshGeom.hasAlbedo = true;
+                    
+					// Add color from image to texturesData
+					for (size_t i = 0; i < image.image.size(); i += image.component) {
+						glm::vec3 color;
+						if (image.component == 1) {
+							color = glm::vec3(image.image[i]);
+						}
+						else if (image.component == 4) {
+							color = glm::vec3(image.image[i]/255.f, image.image[i + 1] / 255.f, image.image[i + 2] / 255.f);
+						}
+						else {
+							std::cerr << "Unsupported number of channels in texture" << std::endl;
+							continue;
+						}
+						texturesData.push_back(color);
+					}
+                    tex.endIdx = texturesData.size() - 1;
+                    textures.push_back(tex);
+				}
+            }
+			// Create triangles from the indices
+			for (size_t i = 0; i + 2 < indices.size(); i += 3) {
+				Triangle tri;
+				auto setVertex = [&](Vertex& vert, unsigned int idx) {
+					vert.position = glm::vec3(
+						positions[idx * 3],
+						positions[idx * 3 + 1],
+						positions[idx * 3 + 2]
+					);
+					vert.normal = normals ? glm::vec3(
+						normals[idx * 3],
+						normals[idx * 3 + 1],
+						normals[idx * 3 + 2]
+					) : glm::vec3(0.0f);
+					vert.uv = texcoords ? glm::vec2(
+						texcoords[idx * 2],
+						texcoords[idx * 2 + 1]
+					) : glm::vec2(0.0f);
+					};
+
+				setVertex(tri.v0, indices[i]);
+				setVertex(tri.v1, indices[i + 1]);
+				setVertex(tri.v2, indices[i + 2]);
+
+				meshTris.push_back(tri);
+			}
+        }
+
+        meshGeom.endTriangleIndex = meshTris.size() - 1;
+    }
+}
+

@@ -15,11 +15,18 @@ class Scene
 private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
+	void loadFromGltf(const std::string& gltfName, Geom& gltfMesh);
 public:
     Scene(string filename);
     ~Scene();
 
-    std::vector<Geom> geoms;
-    std::vector<Material> materials;
+	std::vector<Geom> geoms;
+	std::vector<Material> materials;
+	std::vector<Triangle> meshTris;
+    std::vector<Texture> textures;
+    std::vector<glm::vec3> texturesData;
     RenderState state;
+
+    bool enable_skybox;
+    Texture* skyboxTexture;
 };

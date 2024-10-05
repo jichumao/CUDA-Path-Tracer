@@ -11,7 +11,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+	MESH
 };
 
 struct Ray
@@ -20,9 +21,52 @@ struct Ray
     glm::vec3 direction;
 };
 
+struct Vertex {
+	glm::vec3 position;
+	glm::vec3 normal;
+	glm::vec2 uv;
+};
+
+struct Triangle {
+	Vertex v0;
+	Vertex v1;
+	Vertex v2;
+};
+
+// Reference from CIS 5600 Lecture for BVH
+struct AABB {
+	glm::vec3 min;
+	glm::vec3 max;
+};
+
+#if BVH_ENABLED
+struct BVHNode {
+	AABB box;
+	int leftChild;
+	int rightChild;
+	int start;
+	int end;
+};
+
+struct BVHLeaf {
+	AABB box;
+	int start;
+	int end;
+};
+
+struct BVHNodeGPU {
+	AABB box;
+	int leftChild;
+	int rightChild;
+	int start;
+	int end;
+};
+
+#endif
 struct Geom
 {
     enum GeomType type;
+	int geometryid;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -30,6 +74,16 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	int startTriangleIndex;
+	int endTriangleIndex;
+	// Has albedo map
+	bool hasAlbedo = false;
+	// Has normal data
+	bool hasNormals = false;
+	// Has uv data
+	bool hasUVs = false;
+	// Index
+	int albedoTextureId = -1;
 };
 
 struct Material
@@ -44,7 +98,46 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	// flag
+	bool hasAlbedoTexture = false;
+	bool hasNormalTexture = false;
+	bool hasRoughnessTexture = false;
+	bool hasMetalnessTexture = false;
+	bool hasSpecularTexture = false;
+
+	// Texture IDs
+	int albedoTextureId = -1;
+	int normalTextureId = -1;
+	int roughnessTextureId = -1;
+	int metalnessTextureId = -1;
+	int specularTextureId = -1;
+
 };
+
+enum TextureType {
+	AlbedoMap,      
+	NormalMap,
+	BumpMap,
+	RoughnessMap,   
+	MetalnessMap,   
+	SpecularMap,
+	SkyboxMap
+};
+
+struct Texture {
+	// incremental: 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
+	int id;
+	TextureType type;
+	int width;
+	int height;
+	int numChannels;
+	// start index of the texture data in texturesData
+	int startIdx;
+	int endIdx;
+	// for HDR image
+	float* data;
+};
+
 
 struct Camera
 {
@@ -78,7 +171,6 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
-
 	// Added for accumulated color
 	glm::vec3 accumColor;
 };
@@ -91,4 +183,8 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  bool hasAlbedo = false;
+  glm::vec2 uv;
+  int textureId = -1;
+ 
 };
