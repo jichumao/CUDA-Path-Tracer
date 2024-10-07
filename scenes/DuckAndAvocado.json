@@ -1,0 +1,73 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":5.0
+        },
+        "diffuse_white":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.98, 0.98, 0.98]
+        },
+        "diffuse_red":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.85, 0.35, 0.35]
+        },
+        "diffuse_green":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.35, 0.85, 0.35]
+        },
+        "specular_white":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.98, 0.98],
+            "SPECRGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
+        },
+        "glass":
+        {
+            "TYPE":"Refractive",
+            "RGB":[0.98, 0.98, 0.98],
+            "SPECRGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0,
+            "IOR":1.55
+        }
+    },
+    "Camera":
+    {
+        "RES":[1200,1200],
+        "FOVY":45.0,
+        "ITERATIONS":200000,
+        "DEPTH":8,
+        "FILE":"cornell",
+        "EYE":[0.0,5.0,10.5],
+        "LOOKAT":[0.0,5.0,0.0],
+        "UP":[0.0,1.0,0.0],
+        "LENSRADIUS":1.0,
+        "FOCALLENGTH":9.0
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"mesh_gltf",
+            "FILE":"Duck",
+            "MATERIAL":"diffuse_green",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[0.05,0.05,0.05]
+        },
+        {
+            "TYPE":"mesh_gltf",
+            "FILE":"Avocado",
+            "MATERIAL":"diffuse_green",
+            "TRANS":[0.0,4.0,0.0],
+            "ROTAT":[0.0,-180.0,0.0],
+            "SCALE":[5.0,5.0,5.0]
+        }
+    ]
+}

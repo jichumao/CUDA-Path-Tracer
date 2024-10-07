@@ -19,7 +19,7 @@ Scene::Scene(string filename)
 #if ENVIRONMENT_MAP_ENABLED
 	int width, height, channels;
 	int desired_channels = 4; 
-    std::string fileName = "small_apartment_1.hdr";
+    std::string fileName = "meadow_2_4k.hdr";
 	std::string dir_skyboxTex = "../resources/environment_maps/" + fileName;
 	float* h_image = stbi_loadf(dir_skyboxTex.c_str(), &width, &height, &channels, desired_channels);
 	if (!h_image) {
@@ -39,6 +39,9 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+#if BVH_ENABLED
+		buildBVH(); // build BVH
+#endif
         return;
     }
     else
@@ -184,7 +187,7 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
 	std::string err;
 	std::string warn;
 
-	std::string dir_gltf = "../resources/" + gltfName + "/" + gltfName + ".gltf";
+	std::string dir_gltf = "../resources/" + gltfName + "/glTF/" + gltfName + ".gltf";
 	bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, dir_gltf);
 
 	if (!warn.empty()) {
@@ -337,3 +340,97 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
     }
 }
 
+#if BVH_ENABLED
+
+
+void Scene::buildBVH() {
+	// 收集所有三角形的包围盒
+	std::vector<PrimitiveInfo> primInfos;
+	primInfos.reserve(meshTris.size());
+	for (int i = 0; i < meshTris.size(); ++i) {
+		const Triangle& tri = meshTris[i];
+		AABB bbox;
+		bbox.expand(tri.v0.position);
+		bbox.expand(tri.v1.position);
+		bbox.expand(tri.v2.position);
+		primInfos.emplace_back(i, bbox);
+	}
+
+	// 初始化扁平化数组的大小（初始估计）
+	int estimatedNodes = 2 * meshTris.size(); // 保守估计
+	flattenedBVH.resize(estimatedNodes);
+	int totalNodes = 0;
+
+	// 递归构建 BVH
+	buildBVHRecursive(primInfos, 0, primInfos.size(), totalNodes, 8);
+
+	// 重新调整扁平化数组的大小
+	flattenedBVH.resize(totalNodes);
+}
+
+int Scene::buildBVHRecursive(
+	std::vector<PrimitiveInfo>& primInfos,
+	int start, int end,
+	int& totalNodes, int maxLeafSize) {
+
+	// 当前节点的索引
+	int currentIdx = totalNodes++;
+	if (currentIdx >= flattenedBVH.size()) {
+		flattenedBVH.resize(flattenedBVH.size() * 2 + 1);
+	}
+
+	BVHNode& node = flattenedBVH[currentIdx];
+
+	// 计算节点的包围盒
+	AABB bbox;
+	for (int i = start; i < end; ++i) {
+		bbox.expand(primInfos[i].bbox);
+	}
+	node.bbox = bbox;
+
+	int numPrimitives = end - start;
+	if (numPrimitives <= maxLeafSize) {
+		// 创建叶子节点
+		node.isLeaf = true;
+		node.start = start;
+		node.range = numPrimitives;
+		node.left = -1;
+		node.right = -1;
+	}
+	else {
+		// 计算质心的包围盒
+		AABB centroidBBox;
+		for (int i = start; i < end; ++i) {
+			centroidBBox.expand(primInfos[i].centroid);
+		}
+		int dim = centroidBBox.maxExtent();
+
+		// 按照质心在最大扩展轴上的坐标进行排序
+		std::sort(primInfos.begin() + start, primInfos.begin() + end,
+			[dim](const PrimitiveInfo& a, const PrimitiveInfo& b) {
+				return a.centroid[dim] < b.centroid[dim];
+			});
+
+		int mid = (start + end) / 2;
+		node.isLeaf = false;
+
+		// 递归构建左子节点和右子节点
+		node.left = buildBVHRecursive(primInfos, start, mid, totalNodes, maxLeafSize);
+		node.right = buildBVHRecursive(primInfos, mid, end, totalNodes, maxLeafSize);
+	}
+
+	return currentIdx;
+}
+
+void Scene::deleteBVHRecursive(int nodeIdx) {
+	if (nodeIdx == -1) return;
+
+	BVHNode& node = flattenedBVH[nodeIdx];
+	if (!node.isLeaf) {
+		deleteBVHRecursive(node.left);
+		deleteBVHRecursive(node.right);
+	}
+}
+
+
+#endif

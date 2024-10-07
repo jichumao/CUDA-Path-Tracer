@@ -29,4 +29,7 @@ public:
 
     bool enable_skybox;
     Texture* skyboxTexture;
+
+#if BVH_ENABLED
+#endif
 };

@@ -39,30 +39,6 @@ struct AABB {
 	glm::vec3 max;
 };
 
-#if BVH_ENABLED
-struct BVHNode {
-	AABB box;
-	int leftChild;
-	int rightChild;
-	int start;
-	int end;
-};
-
-struct BVHLeaf {
-	AABB box;
-	int start;
-	int end;
-};
-
-struct BVHNodeGPU {
-	AABB box;
-	int leftChild;
-	int rightChild;
-	int start;
-	int end;
-};
-
-#endif
 struct Geom
 {
     enum GeomType type;
@@ -188,3 +164,4 @@ struct ShadeableIntersection
   int textureId = -1;
  
 };
+
