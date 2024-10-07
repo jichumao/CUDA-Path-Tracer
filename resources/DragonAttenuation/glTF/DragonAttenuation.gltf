@@ -101,11 +101,7 @@
                         0.064
                     ],
                     "attenuationDistance": 0.155,
-                    "thicknessFactor": 2.27,
-                    "thicknessTexture": {
-                        "index": 1,
-                        "texCoord": 0
-                    }
+                    "thicknessFactor": 2.27
                 }
             }
         },
@@ -187,17 +183,9 @@
         {
             "sampler" : 0,
             "source" : 0
-        },
-        {
-            "sampler" : 0,
-            "source" : 1
         }
     ],
     "images" : [
-        {
-            "mimeType" : "image/jpeg",
-            "uri" : "checkerboard.jpg"
-        },
         {
             "mimeType" : "image/jpeg",
             "uri" : "Dragon_ThicknessMap.jpg"

@@ -153,9 +153,6 @@ static glm::vec3* dev_texturesData = NULL;
 static cudaArray_t dev_skyboxArray = NULL;
 static cudaTextureObject_t dev_skyboxTex = 0;
 
-#if BVH_ENABLED
-static BVHNode* dev_bvhNodes = NULL;
-#endif
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -230,12 +227,6 @@ void pathtraceInit(Scene* scene)
 	}
 #endif
 
-#if BVH_ENABLED
-	cudaMalloc(&dev_bvhNodes, scene->flattenedBVH.size() * sizeof(BVHNode));
-	cudaMemcpy(dev_bvhNodes, scene->flattenedBVH.data(),
-		scene->flattenedBVH.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-#endif
-
     checkCUDAError("pathtraceInit");
 }
 
@@ -267,10 +258,6 @@ void pathtraceFree()
 	//}
 #endif
 
-#if BVH_ENABLED
-	cudaFree(dev_bvhNodes);
-	dev_bvhNodes = NULL;
-#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -380,7 +367,7 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			else if (geom.type == MESH)
-            {
+            {   
 				t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal,tmp_uv, outside);
             }
 

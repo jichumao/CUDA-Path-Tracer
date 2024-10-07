@@ -28,11 +28,13 @@
 #define ANTI_ALIASING           1
 #define DEPTH_OF_FIELD          0
 #define GAMMA_CORRECTION        1
-#define BVH_ENABLED             1
+#define BVH_ENABLED             0
 #define ENVIRONMENT_MAP_ENABLED 1
+#define BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED 1
 // Tone mapping
 #define REINHARD_TONE_MAPPING   0 && !ACES_TONE_MAPPING
 #define ACES_TONE_MAPPING       1 && !REINHARD_TONE_MAPPING
+
 
 class GuiDataContainer
 {

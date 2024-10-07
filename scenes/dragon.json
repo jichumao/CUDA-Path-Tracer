@@ -31,7 +31,7 @@
         },
         "glass":
         {
-            "TYPE":"Refractive",
+            "TYPE":"specular_white",
             "RGB":[0.98, 0.98, 0.98],
             "SPECRGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0,

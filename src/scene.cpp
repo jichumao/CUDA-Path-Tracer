@@ -39,9 +39,6 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
-#if BVH_ENABLED
-		buildBVH(); // build BVH
-#endif
         return;
     }
     else
@@ -107,6 +104,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
         Geom newGeom;
 
         newGeom.geometryid = gid++;
+		newGeom.materialid = MatNameToID[p["MATERIAL"]];
+		const auto& trans = p["TRANS"];
+		const auto& rotat = p["ROTAT"];
+		const auto& scale = p["SCALE"];
+		newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+		newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+		newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+		newGeom.transform = utilityCore::buildTransformationMatrix(
+			newGeom.translation, newGeom.rotation, newGeom.scale);
+		newGeom.inverseTransform = glm::inverse(newGeom.transform);
+		newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
         if (type == "cube")
         {
@@ -125,17 +133,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 			std::cerr << "Unknown object type: " << type << std::endl;
 			continue;
 		}
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
 
         geoms.push_back(newGeom);
     }
@@ -179,6 +177,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
 
+inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
+{
+	return glm::vec3(m * v);
+}
+
 // Reference https://www.slideshare.net/slideshow/gltf-20-reference-guide/78149291#1
 void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
 
@@ -203,6 +206,10 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
 		return;
     }
 
+#if BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED 1
+	meshGeom.min = glm::vec3(std::numeric_limits<float>::max());
+	meshGeom.max = glm::vec3(std::numeric_limits<float>::lowest());
+#endif
     meshGeom.startTriangleIndex = meshTris.size();
 	// For each mesh in the glTF file
     for (const auto& mesh : model.meshes) {
@@ -234,7 +241,20 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
                     meshGeom.hasUVs = true;
                 }
             }
-
+#if BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED
+			// Calculate the bounding box
+			for (size_t i = 0; i < vertexCount; ++i) {
+				glm::vec3 pos(
+					positions[i * 3],
+					positions[i * 3 + 1],
+					positions[i * 3 + 2]
+				);
+				meshGeom.min = glm::min(multiplyMV(meshGeom.inverseTransform, glm::vec4(pos, 1.0f)),
+					meshGeom.min);
+				meshGeom.max = glm::max(multiplyMV(meshGeom.inverseTransform, glm::vec4(pos, 1.0f)),
+				meshGeom.max);
+			}
+#endif
 			// Get the indices from the primitive
 			std::vector<unsigned int> indices;
 			if (primitive.indices >= 0) {
@@ -339,98 +359,3 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
         meshGeom.endTriangleIndex = meshTris.size() - 1;
     }
 }
-
-#if BVH_ENABLED
-
-
-void Scene::buildBVH() {
-	// 收集所有三角形的包围盒
-	std::vector<PrimitiveInfo> primInfos;
-	primInfos.reserve(meshTris.size());
-	for (int i = 0; i < meshTris.size(); ++i) {
-		const Triangle& tri = meshTris[i];
-		AABB bbox;
-		bbox.expand(tri.v0.position);
-		bbox.expand(tri.v1.position);
-		bbox.expand(tri.v2.position);
-		primInfos.emplace_back(i, bbox);
-	}
-
-	// 初始化扁平化数组的大小（初始估计）
-	int estimatedNodes = 2 * meshTris.size(); // 保守估计
-	flattenedBVH.resize(estimatedNodes);
-	int totalNodes = 0;
-
-	// 递归构建 BVH
-	buildBVHRecursive(primInfos, 0, primInfos.size(), totalNodes, 8);
-
-	// 重新调整扁平化数组的大小
-	flattenedBVH.resize(totalNodes);
-}
-
-int Scene::buildBVHRecursive(
-	std::vector<PrimitiveInfo>& primInfos,
-	int start, int end,
-	int& totalNodes, int maxLeafSize) {
-
-	// 当前节点的索引
-	int currentIdx = totalNodes++;
-	if (currentIdx >= flattenedBVH.size()) {
-		flattenedBVH.resize(flattenedBVH.size() * 2 + 1);
-	}
-
-	BVHNode& node = flattenedBVH[currentIdx];
-
-	// 计算节点的包围盒
-	AABB bbox;
-	for (int i = start; i < end; ++i) {
-		bbox.expand(primInfos[i].bbox);
-	}
-	node.bbox = bbox;
-
-	int numPrimitives = end - start;
-	if (numPrimitives <= maxLeafSize) {
-		// 创建叶子节点
-		node.isLeaf = true;
-		node.start = start;
-		node.range = numPrimitives;
-		node.left = -1;
-		node.right = -1;
-	}
-	else {
-		// 计算质心的包围盒
-		AABB centroidBBox;
-		for (int i = start; i < end; ++i) {
-			centroidBBox.expand(primInfos[i].centroid);
-		}
-		int dim = centroidBBox.maxExtent();
-
-		// 按照质心在最大扩展轴上的坐标进行排序
-		std::sort(primInfos.begin() + start, primInfos.begin() + end,
-			[dim](const PrimitiveInfo& a, const PrimitiveInfo& b) {
-				return a.centroid[dim] < b.centroid[dim];
-			});
-
-		int mid = (start + end) / 2;
-		node.isLeaf = false;
-
-		// 递归构建左子节点和右子节点
-		node.left = buildBVHRecursive(primInfos, start, mid, totalNodes, maxLeafSize);
-		node.right = buildBVHRecursive(primInfos, mid, end, totalNodes, maxLeafSize);
-	}
-
-	return currentIdx;
-}
-
-void Scene::deleteBVHRecursive(int nodeIdx) {
-	if (nodeIdx == -1) return;
-
-	BVHNode& node = flattenedBVH[nodeIdx];
-	if (!node.isLeaf) {
-		deleteBVHRecursive(node.left);
-		deleteBVHRecursive(node.right);
-	}
-}
-
-
-#endif

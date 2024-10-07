@@ -108,6 +108,38 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+bool rayIntersectsAABB(const Ray& ray, const glm::vec3& min, const glm::vec3& max) {
+	// Slabs Method for Ray-AABB intersection
+	float tmin = (min.x - ray.origin.x) / ray.direction.x;
+	float tmax = (max.x - ray.origin.x) / ray.direction.x;
+
+	if (tmin > tmax) std::swap(tmin, tmax);
+
+	float tymin = (min.y - ray.origin.y) / ray.direction.y;
+	float tymax = (max.y - ray.origin.y) / ray.direction.y;
+
+	if (tymin > tymax) std::swap(tymin, tymax);
+
+	if ((tmin > tymax) || (tymin > tmax))
+		return false;
+
+	if (tymin > tmin)
+		tmin = tymin;
+
+	if (tymax < tmax)
+		tmax = tymax;
+
+	float tzmin = (min.z - ray.origin.z) / ray.direction.z;
+	float tzmax = (max.z - ray.origin.z) / ray.direction.z;
+
+	if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+	if ((tmin > tzmax) || (tzmin > tmax))
+		return false;
+
+	return true;
+}
+
 __host__ __device__ 
 float meshIntersectionTest(
     Geom mesh,
@@ -117,7 +149,12 @@ float meshIntersectionTest(
     glm::vec3& normal,
 	glm::vec2& uvOut,
     bool& outside) {
-
+#if BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED
+	// culling box test
+    if (!rayIntersectsAABB(ray, mesh.min, mesh.max)){
+        return -1.0f;
+    }
+#endif
 	glm::vec3 objOrigin = multiplyMV(mesh.inverseTransform, glm::vec4(ray.origin, 1.0f));
 	glm::vec3 objDir = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(ray.direction, 0.0f)));
 

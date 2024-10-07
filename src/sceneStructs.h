@@ -60,6 +60,11 @@ struct Geom
 	bool hasUVs = false;
 	// Index
 	int albedoTextureId = -1;
+#if BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED
+	// for boundary culling
+	glm::vec3 min;
+	glm::vec3 max;
+#endif
 };
 
 struct Material
@@ -165,3 +170,34 @@ struct ShadeableIntersection
  
 };
 
+#if BVH_ENABLED
+struct AABB {
+	glm::vec3 minPos;
+	glm::vec3 maxPos;
+	glm::vec3 centroid;
+	Geom geom;
+	int triIdx; 
+
+	AABB() : minPos(glm::vec3(0.0f)), maxPos(glm::vec3(0.0f)), centroid(glm::vec3(0.0f)), triIdx(-1) {}
+
+	AABB(const glm::vec3& minP, const glm::vec3& maxP, const glm::vec3& center, const Geom& g, int idx = -1)
+		: minPos(minP), maxPos(maxP), centroid(center), geom(g), triIdx(idx) {}
+};
+
+struct BVHNode {
+	AABB boundingBox;
+	BVHNode* left;
+	BVHNode* right;
+
+	BVHNode() : left(nullptr), right(nullptr) {}
+	BVHNode(const AABB& box) : boundingBox(box), left(nullptr), right(nullptr) {}
+};
+
+struct LBVHNode {
+	AABB boundingBox;
+	int secondChildOffset;
+	bool isLeaf;
+
+	__host__ __device__ LBVHNode() : secondChildOffset(-1), isLeaf(false) {}
+};
+#endif
