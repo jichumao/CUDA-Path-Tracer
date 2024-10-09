@@ -42,32 +42,24 @@
     {
         "RES":[800,800],
         "FOVY":45.0,
-        "ITERATIONS":60000,
+        "ITERATIONS":70000,
         "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0],
-        "LENSRADIUS":0.1,
-        "FOCALLENGTH":4.0
+        "LENSRADIUS":0.5,
+        "FOCALLENGTH":9.0
     },
     "Objects":
     [
         {
             "TYPE":"mesh_gltf",
-            "FILE":"concrete_cat_statue_4k",
-            "MATERIAL":"diffuse_red",
+            "FILE":"DragonAttenuation",
+            "MATERIAL":"glass",
             "TRANS":[0.0,0.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[15.0,15.0,15.0]
-        },
-        {
-            "TYPE":"mesh_gltf",
-            "FILE":"grass_bermuda_01_4k",
-            "MATERIAL":"diffuse_red",
-            "TRANS":[0.0,-4.5,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[20.0,20.0,20.0]
+            "ROTAT":[90.0,0.0,0.0],
+            "SCALE":[1.0,1.0,1.0]
         }
     ]
 }
