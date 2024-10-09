@@ -214,3 +214,72 @@ float meshIntersectionTest(
 	return glm::length(ray.origin - intersectionPoint);
 }
 
+__host__ __device__ bool doesRayIntersectAABB(Ray r, AABB aabb)
+{
+	glm::vec3 invDir = 1.f / r.direction;
+	glm::vec3 near = (aabb.minPos - r.origin) * invDir;
+	glm::vec3 far = (aabb.maxPos - r.origin) * invDir;
+	glm::vec3 tmin = min(near, far);
+	glm::vec3 tmax = max(near, far);
+	float t0 = max(max(tmin.x, tmin.y), tmin.z);
+	float t1 = min(min(tmax.x, tmax.y), tmax.z);
+	if (t0 > t1) return false;
+	if (t0 > 0.0 // ray came from outside, entering the box
+		||
+		t1 > 0.0)// ray originated inside, now exiting the box
+	{
+		return true;
+	}
+	return false;
+}
+
+__host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t2, glm::vec3 t3) {
+	glm::vec3 edge1 = t2 - t1;
+	glm::vec3 edge2 = t3 - t2;
+	float S = glm::length(glm::cross(edge1, edge2));
+
+	edge1 = p - t2;
+	edge2 = p - t3;
+	float S1 = glm::length(glm::cross(edge1, edge2));
+
+	edge1 = p - t1;
+	edge2 = p - t3;
+	float S2 = glm::length(glm::cross(edge1, edge2));
+
+	edge1 = p - t1;
+	edge2 = p - t2;
+	float S3 = glm::length(glm::cross(edge1, edge2));
+
+	return glm::vec3(S1 / S, S2 / S, S3 / S);
+}
+
+__host__ __device__ float rayTriangleIntersection(Geom geom, Ray r, Triangle* tris, int triIdx, glm::vec3& intersectionPoint, glm::vec3& normal, glm::vec2& uv) {
+
+	glm::vec3 ro = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
+	glm::vec3 rd = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	Ray rt;
+	rt.origin = ro;
+	rt.direction = rd;
+	glm::vec3 baryIntersection;
+	if (glm::intersectRayTriangle(ro, rd, tris[triIdx].v0.position, tris[triIdx].v1.position, tris[triIdx].v2.position, baryIntersection)) {
+		glm::vec3 objspaceIntersection = ro + baryIntersection.z * rd;
+		glm::vec3 objspaceNormal;
+		glm::vec3 barycentricWeights = barycentric(objspaceIntersection, tris[triIdx].v0.position, tris[triIdx].v1.position, tris[triIdx].v2.position);
+		if (geom.hasNormals) {
+			objspaceNormal = barycentricWeights.x * tris[triIdx].v0.normal + barycentricWeights.y * tris[triIdx].v1.normal + barycentricWeights.z * tris[triIdx].v2.normal;
+		}
+		else {
+			objspaceNormal = glm::normalize(glm::cross(tris[triIdx].v1.position - tris[triIdx].v0.position, tris[triIdx].v2.position - tris[triIdx].v0.position));
+		}
+		if (geom.hasAlbedo) {
+			uv = barycentricWeights.x * tris[triIdx].v0.uv + barycentricWeights.y * tris[triIdx].v1.uv + barycentricWeights.z * tris[triIdx].v2.uv;
+		}
+		intersectionPoint = multiplyMV(geom.transform, glm::vec4(objspaceIntersection, 1.f));
+		normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(objspaceNormal, 0.f)));
+		return glm::length(r.origin - intersectionPoint);
+	}
+	else {
+		return -1.f;
+	}
+}

@@ -81,3 +81,14 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3& normal,
     glm::vec2& uvOut,
     bool& outside);
+
+__host__ __device__ float rayTriangleIntersection(
+    Geom geom,
+    Ray r,
+    Triangle* tris,
+    int triIdx,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    glm::vec2& uv);
+
+__host__ __device__ bool doesRayIntersectAABB(Ray r, AABB aabb);

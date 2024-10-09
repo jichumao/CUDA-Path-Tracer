@@ -42,14 +42,14 @@
     {
         "RES":[800,800],
         "FOVY":45.0,
-        "ITERATIONS":5000,
+        "ITERATIONS":60000,
         "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0],
-        "LENSRADIUS":1.0,
-        "FOCALLENGTH":9.0
+        "LENSRADIUS":0.1,
+        "FOCALLENGTH":4.0
     },
     "Objects":
     [
@@ -65,7 +65,7 @@
             "TYPE":"mesh_gltf",
             "FILE":"grass_bermuda_01_4k",
             "MATERIAL":"diffuse_red",
-            "TRANS":[0.0,-5.0,0.0],
+            "TRANS":[0.0,-4.5,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[20.0,20.0,20.0]
         }

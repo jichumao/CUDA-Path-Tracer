@@ -18,8 +18,13 @@ Scene::Scene(string filename)
 
 #if ENVIRONMENT_MAP_ENABLED
 	int width, height, channels;
-	int desired_channels = 4; 
-    std::string fileName = "meadow_2_4k.hdr";
+	int desired_channels = 4;
+    //std::string fileName = "meadow_2_4k.hdr";
+	//std::string fileName = "meadow_4k.hdr";
+	//std::string fileName = "satara_night_4k.hdr";
+	//std::string fileName = "shanghai_bund_4k.hdr";
+	std::string fileName = "small_apartment_1.hdr";
+	//std::string fileName = "interior_atelier_soft_daylight.hdr";
 	std::string dir_skyboxTex = "../resources/environment_maps/" + fileName;
 	float* h_image = stbi_loadf(dir_skyboxTex.c_str(), &width, &height, &channels, desired_channels);
 	if (!h_image) {
@@ -134,7 +139,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
 			continue;
 		}
 
-
+#if BVH_ENABLED
+		computeAABB(newGeom);
+#endif
         geoms.push_back(newGeom);
     }
     const auto& cameraData = data["Camera"];
@@ -313,7 +320,7 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
 					for (size_t i = 0; i < image.image.size(); i += image.component) {
 						glm::vec3 color;
 						if (image.component == 1) {
-							color = glm::vec3(image.image[i]);
+							color = glm::vec3(image.image[i]/255.f);
 						}
 						else if (image.component == 4) {
 							color = glm::vec3(image.image[i]/255.f, image.image[i + 1] / 255.f, image.image[i + 2] / 255.f);
@@ -359,3 +366,119 @@ void Scene::loadFromGltf(const std::string& gltfName, Geom& meshGeom) {
         meshGeom.endTriangleIndex = meshTris.size() - 1;
     }
 }
+#if BVH_ENABLED
+void Scene::computeAABB(Geom geom) {
+	switch (geom.type) {
+	case(SPHERE): {
+		glm::vec3 minPos = glm::vec3(geom.transform * glm::vec4(-0.5f, -0.5f, -0.5f, 1.f));
+		glm::vec3 maxPos = glm::vec3(geom.transform * glm::vec4(0.5f, 0.5f, 0.5f, 1.f));
+		boundingBoxes.push_back(AABB(minPos, maxPos, (minPos + maxPos) / 2.f, geom));
+		break;
+	}
+	case(CUBE): {
+		glm::vec3 minPos = glm::vec3(std::numeric_limits<float>::max()), maxPos = -minPos;
+		glm::vec3 center = glm::vec3(geom.transform * glm::vec4(0.f, 0.f, 0.f, 1.f));
+		for (float i = -0.5; i <= 0.5; i += 1.f) {
+			for (float j = -0.5; j <= 0.5; j += 1.f) {
+				for (float k = -0.5; k <= 0.5; k += 1.f) {
+					glm::vec3 pos = glm::vec3(geom.transform * glm::vec4(i, j, k, 1.f));
+					minPos = glm::min(minPos, pos);
+					maxPos = glm::max(maxPos, pos);
+				}
+			}
+		}
+		boundingBoxes.push_back(AABB(minPos, maxPos, center, geom));
+		break;
+	}
+	case(MESH): {
+		for (int i = geom.startTriangleIndex; i <= geom.endTriangleIndex; i++) {
+			glm::vec3 minPos = glm::vec3(std::numeric_limits<float>::max()), maxPos = -minPos;
+			glm::vec3 p1 = glm::vec3(geom.transform * glm::vec4(meshTris[i].v0.position, 1.f));
+			glm::vec3 p2 = glm::vec3(geom.transform * glm::vec4(meshTris[i].v1.position, 1.f));
+			glm::vec3 p3 = glm::vec3(geom.transform * glm::vec4(meshTris[i].v2.position, 1.f));
+			minPos = glm::min(p1, glm::min(p2, p3));
+			maxPos = glm::max(p1, glm::max(p2, p3));
+			glm::vec3 centroid = (p1 + p2 + p3) / 3.f;
+			boundingBoxes.push_back(AABB(minPos, maxPos, centroid, geom, i));
+		}
+		break;
+	}
+	default: cout << "Couldn't compute bounding box!" << endl;
+	}
+}
+
+BVHNode::BVHNode() :boundingBox(), left(nullptr), right(nullptr) {}
+BVHNode::BVHNode(AABB aabb) : boundingBox(aabb), left(nullptr), right(nullptr) {}
+
+void BVHNode::collapseIntoSingleAABB(std::vector<AABB>& boundingBoxes) {
+	glm::vec3 minPos = glm::vec3(std::numeric_limits<float>::max()), maxPos = -minPos;
+	for (const AABB& aabb : boundingBoxes) {
+		minPos = glm::min(minPos, aabb.minPos);
+		maxPos = glm::max(maxPos, aabb.maxPos);
+	}
+	this->boundingBox = AABB(minPos, maxPos);
+}
+
+bool xSort(AABB a, AABB b) { return a.centroid.x < b.centroid.x; }
+bool ySort(AABB a, AABB b) { return a.centroid.y < b.centroid.y; }
+bool zSort(AABB a, AABB b) { return a.centroid.z < b.centroid.z; }
+
+void splitSAH(std::vector<AABB>& boundingBoxes) {
+	std::sort(boundingBoxes.begin(), boundingBoxes.end(), xSort);
+	float xLen = boundingBoxes.back().centroid.x - boundingBoxes.front().centroid.x;
+	std::sort(boundingBoxes.begin(), boundingBoxes.end(), ySort);
+	float yLen = boundingBoxes.back().centroid.y - boundingBoxes.front().centroid.y;
+	std::sort(boundingBoxes.begin(), boundingBoxes.end(), zSort);
+	float zLen = boundingBoxes.back().centroid.z - boundingBoxes.front().centroid.z;
+	if (xLen > yLen && xLen > zLen) {
+		std::sort(boundingBoxes.begin(), boundingBoxes.end(), xSort);
+	}
+	else if (yLen >= xLen && yLen >= zLen) {
+		std::sort(boundingBoxes.begin(), boundingBoxes.end(), ySort);
+	}
+}
+
+void buildBVH(BVHNode*& node, std::vector<AABB>& boundingBoxes) {
+	node = new BVHNode();
+	node->collapseIntoSingleAABB(boundingBoxes);
+	if (boundingBoxes.size() <= 2) {
+		node->left = new BVHNode(boundingBoxes[0]);
+		if (boundingBoxes.size() == 2) {
+			node->right = new BVHNode(boundingBoxes[1]);
+		}
+		return;
+	}
+	else {
+		splitSAH(boundingBoxes);
+		node->collapseIntoSingleAABB(boundingBoxes);
+		int splitIdx = floor(boundingBoxes.size() / 2.f);
+		buildBVH(node->left, std::vector<AABB>(boundingBoxes.begin(), boundingBoxes.begin() + splitIdx));
+		buildBVH(node->right, std::vector<AABB>(boundingBoxes.begin() + splitIdx, boundingBoxes.end()));
+	}
+}
+
+void nofOfNodesInBVH(BVHNode* node, int& count) {
+	count++;
+	if (node->left != __nullptr) {
+		nofOfNodesInBVH(node->left, count);
+	}
+	if (node->right != __nullptr) {
+		nofOfNodesInBVH(node->right, count);
+	}
+}
+
+int flattenBVH(std::vector<LBVHNode>& flattenedBVH, BVHNode* node, int& offset) {
+	int currentOffset = offset++;
+	flattenedBVH[currentOffset].boundingBox = node->boundingBox;
+	if (node->left) {
+		flattenBVH(flattenedBVH, node->left, offset);
+		if (node->right) {
+			flattenedBVH[currentOffset].secondChildOffset = flattenBVH(flattenedBVH, node->right, offset);
+		}
+	}
+	else {
+		flattenedBVH[currentOffset].isLeaf = true;
+	}
+	return currentOffset;
+}
+#endif

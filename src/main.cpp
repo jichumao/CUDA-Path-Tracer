@@ -150,7 +150,23 @@ void runCuda()
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
-
+#if BVH_ENABLED
+	if (!scene->bvhBuilt) {
+		//timer().startCpuTimer();
+		buildBVH(scene->root, scene->boundingBoxes);
+		int nodes = 0;
+		nofOfNodesInBVH(scene->root, nodes);
+		for (int i = 0; i < nodes; i++) {
+			scene->flattenedBVH.push_back(LBVHNode());
+		}
+		//scene->flattenedBVH = { nodes, LBVHNode() };
+		int offset = 0;
+		flattenBVH(scene->flattenedBVH, scene->root, offset);
+		//timer().endCpuTimer();
+		//cout << "time taken to build BVH: " << timer().getCpuElapsedTimeForPreviousOperation() << " ms" << endl;
+		scene->bvhBuilt = true;
+	}
+#endif
     if (iteration == 0)
     {
         pathtraceFree();

@@ -34,10 +34,6 @@ struct Triangle {
 };
 
 // Reference from CIS 5600 Lecture for BVH
-struct AABB {
-	glm::vec3 min;
-	glm::vec3 max;
-};
 
 struct Geom
 {
@@ -66,6 +62,21 @@ struct Geom
 	glm::vec3 max;
 #endif
 };
+
+#if BVH_ENABLED
+struct AABB {
+	glm::vec3 minPos;
+	glm::vec3 maxPos;
+	glm::vec3 centroid;
+	int triIdx;
+	Geom geom;
+	AABB() : minPos(), maxPos(), centroid(), geom(), triIdx(-1) {}
+	AABB(glm::vec3 minP, glm::vec3 maxP) : minPos(minP), maxPos(maxP), centroid(), geom(), triIdx(-1) {}
+	AABB(glm::vec3 minP, glm::vec3 maxP, glm::vec3 c, Geom g, int id) : minPos(minP), maxPos(maxP), centroid(c), geom(g), triIdx(id) {}
+	AABB(glm::vec3 minP, glm::vec3 maxP, glm::vec3 c, Geom g) : AABB(minP, maxP, c, g, -1) {}
+
+};
+#endif
 
 struct Material
 {
@@ -171,33 +182,5 @@ struct ShadeableIntersection
 };
 
 #if BVH_ENABLED
-struct AABB {
-	glm::vec3 minPos;
-	glm::vec3 maxPos;
-	glm::vec3 centroid;
-	Geom geom;
-	int triIdx; 
 
-	AABB() : minPos(glm::vec3(0.0f)), maxPos(glm::vec3(0.0f)), centroid(glm::vec3(0.0f)), triIdx(-1) {}
-
-	AABB(const glm::vec3& minP, const glm::vec3& maxP, const glm::vec3& center, const Geom& g, int idx = -1)
-		: minPos(minP), maxPos(maxP), centroid(center), geom(g), triIdx(idx) {}
-};
-
-struct BVHNode {
-	AABB boundingBox;
-	BVHNode* left;
-	BVHNode* right;
-
-	BVHNode() : left(nullptr), right(nullptr) {}
-	BVHNode(const AABB& box) : boundingBox(box), left(nullptr), right(nullptr) {}
-};
-
-struct LBVHNode {
-	AABB boundingBox;
-	int secondChildOffset;
-	bool isLeaf;
-
-	__host__ __device__ LBVHNode() : secondChildOffset(-1), isLeaf(false) {}
-};
 #endif

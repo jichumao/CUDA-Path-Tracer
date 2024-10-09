@@ -100,13 +100,13 @@ __host__ __device__ void scatterRay(
         // if material is not 100% reflective
 		if (m.hasReflective < 1.0f) {
 			thrust::uniform_real_distribution<float> u01(0, 1);
-			if (u01(rng) < 0.5) {
+			if (u01(rng) < 0.90) {
 				scatter_diffuse(pathSegment, normal, m, rng);
 			}
 			else {
 				scatter_specular(pathSegment, normal, m);
 			}
-			pathSegment.accumColor *= 2.0;
+			//pathSegment.accumColor *= 2.0;
            // float diffuse = 1 - m.hasReflective;
 		}
 		// 100% reflective

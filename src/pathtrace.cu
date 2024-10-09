@@ -153,7 +153,9 @@ static glm::vec3* dev_texturesData = NULL;
 static cudaArray_t dev_skyboxArray = NULL;
 static cudaTextureObject_t dev_skyboxTex = 0;
 
-
+#if BVH_ENABLED
+static LBVHNode* dev_lbvh_nodes = NULL;
+#endif
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -190,6 +192,11 @@ void pathtraceInit(Scene* scene)
 
 	cudaMalloc(&dev_texturesData, scene->texturesData.size() * sizeof(glm::vec3));
 	cudaMemcpy(dev_texturesData, scene->texturesData.data(), scene->texturesData.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+#if BVH_ENABLED
+	cudaMalloc(&dev_lbvh_nodes, scene->flattenedBVH.size() * sizeof(LBVHNode));
+	cudaMemcpy(dev_lbvh_nodes, scene->flattenedBVH.data(), scene->flattenedBVH.size() * sizeof(LBVHNode), cudaMemcpyHostToDevice);
+#endif
 
 #if ENVIRONMENT_MAP_ENABLED
 	if (scene->enable_skybox) {
@@ -257,7 +264,9 @@ void pathtraceFree()
 	//	hst_scene->skyboxTexture = nullptr;
 	//}
 #endif
-
+#if BVH_ENABLED
+	cudaFree(dev_lbvh_nodes);
+#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -333,6 +342,9 @@ __global__ void computeIntersections(
     Geom* geoms,
     int geoms_size,
 	Triangle* triangles,
+#if BVH_ENABLED
+	LBVHNode* lbvh,
+#endif
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -354,35 +366,92 @@ __global__ void computeIntersections(
 		glm::vec2 tmp_uv;
         // naive parse through global geoms
 
-        for (int i = 0; i < geoms_size; i++)
-        {
-            Geom& geom = geoms[i];
+#if BVH_ENABLED
+    
+	int noIntersections = 0;
+	int top = 0;
+	int stack[64] = { 0 };
+	while (top >= 0 && top < 64) {
+		int currNodeIdx = stack[top];
+		top--;
 
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+		LBVHNode* currNode = &lbvh[currNodeIdx];
+		//if (doesRayIntersectAABB(pathSegment.ray, currNode->boundingBox)) {
+		if (currNode->isLeaf) {
+
+			Geom geom = currNode->boundingBox.geom;
+
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
 			else if (geom.type == MESH)
-            {   
-				t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal,tmp_uv, outside);
-            }
+			{
+				t = rayTriangleIntersection(geom, pathSegment.ray, triangles, currNode->boundingBox.triIdx, tmp_intersect, tmp_normal, tmp_uv);
+			}
 
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
+			// Compute the minimum t from the intersection tests to determine what
+			// scene geometry object was hit first.
+			if (t > 0.0f && t_min > t)
+			{
+				t_min = t;
+				hit_geom_index = currNode->boundingBox.geom.geometryid;
+				intersect_point = tmp_intersect;
+				normal = tmp_normal;
+				uv = tmp_uv;
+			}
+		}
+		else {
+			if (doesRayIntersectAABB(pathSegment.ray, lbvh[currNodeIdx + 1].boundingBox)) {
+				noIntersections++;
+				top++;
+				stack[top] = currNodeIdx + 1; //left child
+			}
 
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-            }
-        }
+			if (currNode->secondChildOffset != -1 && doesRayIntersectAABB(pathSegment.ray, lbvh[currNode->secondChildOffset].boundingBox)) {
+				noIntersections++;
+				top++;
+				stack[top] = currNode->secondChildOffset; //right child
+			}
+		}
+	}
+
+#else
+		for (int i = 0; i < geoms_size; i++)
+		{
+			Geom& geom = geoms[i];
+
+			if (geom.type == CUBE)
+			{
+				t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == SPHERE)
+			{
+				t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
+			else if (geom.type == MESH)
+			{
+				t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+			}
+
+			// TODO: add more intersection tests here... triangle? metaball? CSG?
+
+			// Compute the minimum t from the intersection tests to determine what
+			// scene geometry object was hit first.
+			if (t > 0.0f && t_min > t)
+			{
+				t_min = t;
+				hit_geom_index = i;
+				intersect_point = tmp_intersect;
+				normal = tmp_normal;
+			}
+		}
+#endif
+
            // The ray hits nothing
         if (hit_geom_index == -1)
         {
@@ -395,10 +464,19 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+#if BVH_ENABLED
+			intersections[path_index].hasAlbedo = geoms[hit_geom_index].hasAlbedo;
+			intersections[path_index].uv = uv;
+			intersections[path_index].textureId = geoms[hit_geom_index].albedoTextureId;
 
+#else
 			intersections[path_index].hasAlbedo = geoms[hit_geom_index].hasAlbedo;
 			intersections[path_index].uv = tmp_uv;
 			intersections[path_index].textureId = geoms[hit_geom_index].albedoTextureId;
+#endif
+			
+
+
         }
     }
 }
@@ -586,6 +664,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 			, dev_geoms
 			, hst_scene->geoms.size()
             , dev_triangles
+#if BVH_ENABLED
+			, dev_lbvh_nodes
+#endif
 			, dev_intersections
 			);
 		checkCUDAError("trace one bounce");
