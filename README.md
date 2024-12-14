@@ -141,7 +141,7 @@ To show the DOF results, two experiments were conducted:
     <td><img src="./imgForReadMe/1.0.png" /></td>
   </tr>
   <tr>
-    <td colspan="3" align="center"><i>Lens Radius = 0.1, Trace Depth = 8, 5000ssp </i></td>
+    <td colspan="3" align="center"><i>Focal Length = 9.0, Trace Depth = 8, 5000ssp </i></td>
   </tr>
 </table>  
 
@@ -159,7 +159,7 @@ To show the DOF results, two experiments were conducted:
     <td><img src="./imgForReadMe/15.0.png" /></td>
   </tr>
   <tr>
-    <td colspan="3" align="center"><i>Focal Length = 9.0, Trace Depth = 8, 5000ssp </i></td>
+    <td colspan="3" align="center"><i>Lens Radius = 0.1, Trace Depth = 8, 5000ssp </i></td>
   </tr>
 </table>  
 
