@@ -1,8 +1,6 @@
 CUDA Path Tracer
 ================
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
-
 * Jichu Mao
   * [LinkedIn](https://www.linkedin.com/in/jichu-mao-a3a980226/)
   *  [Personal Website](https://jichu.art/)
@@ -10,7 +8,7 @@ CUDA Path Tracer
 
 ## Overview
 
-Welcome to the GPU Path Tracer, a high-efficiency ray tracing engine built on CUDA for optimal performance.
+Welcome to the GPU Path Tracer, a high-efficiency ray tracing engine built on CUDA for optimal performance. This project is based on CIS 5650 @ UPenn.
 
 This implementation, rooted in Physically-Based Rendering (PBR), integrates seamlessly with glTF assets for mesh and material processing. It accurately simulates light behavior, delivering effects such as soft shadows, caustics, and depth of field.
 
